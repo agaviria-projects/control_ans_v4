@@ -334,48 +334,61 @@ try:
 except Exception as e:
     print(f"⚠️ Error durante la conexión o cruce con Google Sheets: {e}")
 
+# # # ------------------------------------------------------------
+# # # 🧭 NUEVA COLUMNA: ESTADO_FENIX (según cruce FENIX + formulario)
+# # # ------------------------------------------------------------
+"""
+🔒 BLOQUE DESACTIVADO (v4.1)
+Esta sección se comenta nuevamente después de generar el informe ANS.
+El cálculo real de ESTADO_FENIX se realizará mediante el script:
+➡️ cruce_digitacion_fenix.py
+que usa Digitacion Fenix.txt como fuente oficial.
+"""
+# from datetime import datetime
+# import pandas as pd
+
+# hoy = datetime.now()
+
+# def calcular_estado_fenix(row):
+#     form = str(row.get("REPORTE_TECNICO", "")).strip().upper()
+#     estado_fenix_origen = str(row.get("ESTADO_FENIX_ORIGEN", "")).strip().upper()
+#     fecha_lim = pd.to_datetime(row.get("FECHA_LIMITE_ANS", ""), errors="coerce")
+
+#     if pd.isna(fecha_lim):
+#         return "SIN FECHA"
+
+#     dias_rest = (fecha_lim.date() - hoy.date()).days
+
+#     # ✅ CERRADO solo si el técnico ejecutó en campo y FENIX lo confirma cerrado
+#     if form == "EJECUTADO EN CAMPO" and estado_fenix_origen == "CERRADO":
+#         return "CERRADO"
+
+#     # 🟡 Si el técnico ejecutó pero FENIX aún no está cerrado
+#     if form == "EJECUTADO EN CAMPO" and estado_fenix_origen != "CERRADO":
+#         return "PENDIENTE VALIDACIÓN"
+
+#     # 🔴 Semáforo ANS (según fecha límite)
+#     if dias_rest < 0:
+#         return "VENCIDO"
+#     elif dias_rest == 0:
+#         return "CRÍTICO"
+#     elif dias_rest < 2:
+#         return "APUNTO DE VENCER"
+#     else:
+#         return "ABIERTO"
+
+# df["ESTADO_FENIX"] = df.apply(calcular_estado_fenix, axis=1)
+# print("🧭 Columna ESTADO_FENIX generada correctamente con validación cruzada.")
+
+#------------------------------------------------------------
+#📦 MOVER PEDIDOS CERRADOS A REPOSITORIO HISTÓRICO (versión v5.4 optimizada)
 # ------------------------------------------------------------
-# 🧭 NUEVA COLUMNA: ESTADO_FENIX (según cruce FENIX + formulario)
 # ------------------------------------------------------------
-from datetime import datetime
-import pandas as pd
-
-hoy = datetime.now()
-
-def calcular_estado_fenix(row):
-    form = str(row.get("REPORTE_TECNICO", "")).strip().upper()
-    estado_fenix_origen = str(row.get("ESTADO_FENIX_ORIGEN", "")).strip().upper()
-    fecha_lim = pd.to_datetime(row.get("FECHA_LIMITE_ANS", ""), errors="coerce")
-
-    if pd.isna(fecha_lim):
-        return "SIN FECHA"
-
-    dias_rest = (fecha_lim.date() - hoy.date()).days
-
-    # ✅ CERRADO solo si el técnico ejecutó en campo y FENIX lo confirma cerrado
-    if form == "EJECUTADO EN CAMPO" and estado_fenix_origen == "CERRADO":
-        return "CERRADO"
-
-    # 🟡 Si el técnico ejecutó pero FENIX aún no está cerrado
-    if form == "EJECUTADO EN CAMPO" and estado_fenix_origen != "CERRADO":
-        return "PENDIENTE VALIDACIÓN"
-
-    # 🔴 Semáforo ANS (según fecha límite)
-    if dias_rest < 0:
-        return "VENCIDO"
-    elif dias_rest == 0:
-        return "CRÍTICO"
-    elif dias_rest < 2:
-        return "APUNTO DE VENCER"
-    else:
-        return "ABIERTO"
-
-df["ESTADO_FENIX"] = df.apply(calcular_estado_fenix, axis=1)
-print("🧭 Columna ESTADO_FENIX generada correctamente con validación cruzada.")
-
+# 🔧 Protección: crear columna ESTADO_FENIX vacía si no existe
 # ------------------------------------------------------------
-# 📦 MOVER PEDIDOS CERRADOS A REPOSITORIO HISTÓRICO (versión v5.4 optimizada)
-# ------------------------------------------------------------
+if "ESTADO_FENIX" not in df.columns:
+    df["ESTADO_FENIX"] = "SIN DATO"
+    print("🩹 Columna ESTADO_FENIX creada vacía temporalmente (bloque comentado).")
 from openpyxl import load_workbook
 
 ruta_repo = base_path / "Control_ANS" / "data_clean" / "REPOSITORIO_PEDIDOS_CERRADOS.xlsx"
