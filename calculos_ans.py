@@ -35,7 +35,7 @@ ruta_input = base_path / "Control_ANS" / "data_clean" / "FENIX_CLEAN.xlsx"
 ruta_output = base_path / "Control_ANS" / "data_clean" / "FENIX_ANS.xlsx"
 
 # ------------------------------------------------------------
-# CONFIGURACIÓN DE CALENDARIO
+# CONFIGURACIÓN DE CALENDARIO SIN DIAS FESTIVOS
 # ------------------------------------------------------------
 WEEKMASK = "1111100"  # lunes a viernes
 
@@ -118,7 +118,7 @@ DIAS_PACTADOS_MAP = {
     "ALEGA":  {"URBANO": 7,  "RURAL": 10},
     "ALECA":  {"URBANO": 7,  "RURAL": 10},
     "ACAMN":  {"URBANO": 7,  "RURAL": 10},
-    "AMRTR":  {"URBANO": 7,  "RURAL": 10},
+    "AMRTR":  {"URBANO": 9,  "RURAL": 14},
     "REEQU":  {"URBANO": 11, "RURAL": 11},
     "INPRE":  {"URBANO": 11, "RURAL": 11},
     "DIPRE":  {"URBANO": 11, "RURAL": 11},
@@ -387,7 +387,7 @@ que usa Digitacion Fenix.txt como fuente oficial.
 # 🔧 Protección: crear columna ESTADO_FENIX vacía si no existe
 # ------------------------------------------------------------
 if "ESTADO_FENIX" not in df.columns:
-    df["ESTADO_FENIX"] = "SIN DATO"
+    df["ESTADO_FENIX"] = "PENDIENTE CRUCE"
     print("🩹 Columna ESTADO_FENIX creada vacía temporalmente (bloque comentado).")
 from openpyxl import load_workbook
 
@@ -696,7 +696,7 @@ datos_dias = [
     ["ALEGA", "LEGALIZACION", 7, 10],
     ["ALECA", "LEGALIZACION", 7, 10],
     ["ACAMN", "REFORMA", 7, 10],
-    ["AMRTR", "MOVIMIENTO REDES", 7, 10],
+    ["AMRTR", "MOVIMIENTO REDES", 9, 14],
     ["REEQU", "TRABAJO ENERGÍA PREPAGO", 11, 11],
     ["INPRE", "INSTALACIÓN", 11, 11],
     ["DIPRE", "DESINSTALAR", 11, 11],

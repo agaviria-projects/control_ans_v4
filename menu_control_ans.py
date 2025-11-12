@@ -30,6 +30,7 @@ if sys.stderr.encoding is None or sys.stderr.encoding.lower() != "utf-8":
 RUTA_LOGO = r"data_raw/elite.png"
 RUTA_SCRIPT_ANS = r"calculos_ans.py"
 RUTA_SCRIPT_LIMPIEZA = r"limpieza_fenix.py"
+RUTA_SCRIPT_MERGE = r"merge_fenix_actas.py"
 
 # ------------------------------------------------------------
 # FUNCIONES DE INTERFAZ
@@ -121,7 +122,7 @@ def ejecutar_comando(nombre, comando, boton=None):
 # COMANDO DE BOTÓN INFORME – SECUENCIA COMPLETA SEGURA Y FUNCIONAL
 # ------------------------------------------------------------
 def ejecutar_informe():
-    """Ejecuta limpieza_fenix.py y luego calculos_ans.py en secuencia, usando el mismo Python activo."""
+    """Ejecuta limpieza_fenix.py → calculos_ans.py → merge_fenix_actas.py sin afectar formato ni diseño"""
     def tarea():
         try:
             log_text.insert(tk.END, "\n🚀 Iniciando proceso completo Informe ANS...\n", "info")
@@ -132,65 +133,79 @@ def ejecutar_informe():
             barra_progreso.config(mode="indeterminate")
             barra_progreso.start(20)
 
-            # ✅ Detectar Python actual (entorno activo)
             python_exe = sys.executable
             base_dir = os.path.dirname(os.path.abspath(__file__))
+            ruta_merge = os.path.join(base_dir, "merge_fenix_actas.py")
 
             log_text.insert(tk.END, f"🔍 Python detectado: {python_exe}\n", "info")
             log_text.insert(tk.END, f"📂 Directorio base: {base_dir}\n\n", "info")
 
-            # 1️⃣ Ejecutar limpieza_fenix.py
+            # ------------------------------------------------------------
+            # 1️⃣ LIMPIEZA FÉNIX
+            # ------------------------------------------------------------
             log_text.insert(tk.END, "📂 Ejecutando limpieza de FENIX...\n", "info")
             proceso1 = subprocess.Popen(
                 [python_exe, "-X", "utf8", os.path.join(base_dir, RUTA_SCRIPT_LIMPIEZA)],
-                cwd=base_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="ignore"
+                cwd=base_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, encoding="utf-8", errors="ignore"
             )
             for linea in iter(proceso1.stdout.readline, ''):
                 log_text.insert(tk.END, linea)
                 log_text.see(tk.END)
                 ventana.update_idletasks()
             proceso1.wait()
-
             if proceso1.returncode != 0:
                 log_text.insert(tk.END, "\n❌ Error en limpieza FENIX.\n", "error")
                 pie_estado.config(text="⚠️ Error en limpieza FENIX", fg="#C0392B")
                 return
-
             log_text.insert(tk.END, "✅ Limpieza completada correctamente.\n\n", "success")
 
-            # 2️⃣ Ejecutar calculos_ans.py
+            # ------------------------------------------------------------
+            # 2️⃣ CÁLCULOS ANS
+            # ------------------------------------------------------------
             log_text.insert(tk.END, "📊 Ejecutando cálculos ANS...\n", "info")
             proceso2 = subprocess.Popen(
                 [python_exe, "-X", "utf8", os.path.join(base_dir, RUTA_SCRIPT_ANS)],
-                cwd=base_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="ignore"
+                cwd=base_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, encoding="utf-8", errors="ignore"
             )
             for linea in iter(proceso2.stdout.readline, ''):
                 log_text.insert(tk.END, linea)
                 log_text.see(tk.END)
                 ventana.update_idletasks()
             proceso2.wait()
-
-            if proceso2.returncode == 0:
-                log_text.insert(tk.END, "\n✅ Informe ANS generado correctamente.\n", "success")
-                pie_estado.config(text="✅ Informe ANS actualizado correctamente.", fg="#27AE60")
-                
-                # 🟢 Nuevo popup de confirmación visual
-                mbox.showinfo("Control ANS – ELITE Ingenieros S.A.S.",
-                              "✅ El Informe ANS ha sido actualizado correctamente.\n\n"
-                              "El archivo FENIX_ANS.xlsx está listo para revisión.")
-            else:
+            if proceso2.returncode != 0:
                 log_text.insert(tk.END, "\n❌ Error en cálculos ANS.\n", "error")
                 pie_estado.config(text="⚠️ Error en cálculos ANS", fg="#C0392B")
+                return
+            log_text.insert(tk.END, "✅ Informe ANS generado correctamente.\n\n", "success")
+
+            # ------------------------------------------------------------
+            # 3️⃣ MERGE PROGRAMACIÓN VS ACTAS (Cruce final)
+            # ------------------------------------------------------------
+            log_text.insert(tk.END, "🔄 Ejecutando cruce Programación vs Actas...\n", "info")
+            proceso3 = subprocess.Popen(
+                [python_exe, "-X", "utf8", ruta_merge],
+                cwd=base_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, encoding="utf-8", errors="ignore"
+            )
+            for linea in iter(proceso3.stdout.readline, ''):
+                log_text.insert(tk.END, linea)
+                log_text.see(tk.END)
+                ventana.update_idletasks()
+            proceso3.wait()
+
+            if proceso3.returncode == 0:
+                log_text.insert(tk.END, "\n✅ Cruce Programación vs Actas completado correctamente.\n", "success")
+                pie_estado.config(text="✅ Cruce completado exitosamente.", fg="#27AE60")
+            else:
+                log_text.insert(tk.END, "\n⚠️ Error durante el cruce Programación vs Actas.\n", "error")
+                pie_estado.config(text="⚠️ Error en cruce Programación vs Actas", fg="#C0392B")
+
+            # 🟢 POPUP FINAL
+            mbox.showinfo("Control ANS – ELITE Ingenieros S.A.S.",
+                          "✅ El Informe ANS y el Cruce Programación vs Actas se han completado correctamente.\n\n"
+                          "El archivo FENIX_ANS.xlsx está listo para su validación..")
 
         except Exception as e:
             log_text.insert(tk.END, f"\n⚠️ Error inesperado: {e}\n", "error")
