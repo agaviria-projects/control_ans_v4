@@ -16,8 +16,9 @@ Descripción:
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
 from openpyxl.styles import PatternFill
+
 
 # ------------------------------------------------------------
 # 📂 RUTAS DE ARCHIVOS
@@ -116,24 +117,118 @@ if "pedido" in df_fenix.columns:
 else:
     print("⚠️ No se encontró columna 'pedido' en FENIX_ANS.xlsx.")
     exit(1)
+# ------------------------------------------------------------
+# 📦 MOVER PEDIDOS CERRADOS AL REPOSITORIO (flujo limpio)
+# ------------------------------------------------------------
+print("🔍 Verificando coincidencias antes de mover al repositorio...")
 
-# ------------------------------------------------------------
-# 📦 MOVER PEDIDOS CERRADOS AL REPOSITORIO
-# ------------------------------------------------------------
-cerrados = df_fenix[
-    (df_fenix["tecnico_ejecuta"].str.upper() == "EJECUTADO EN CAMPO")
-    & (df_fenix["estado_fenix"].str.upper() == "CUMPLIDO")
+df_fenix_actualizado = pd.read_excel(ruta_fenix_ans, sheet_name="FENIX_ANS", dtype=str)
+df_fenix_actualizado.columns = df_fenix_actualizado.columns.str.strip().str.lower()
+
+# 🔎 Buscar pedidos ejecutados en campo y cumplidos
+cerrados = df_fenix_actualizado[
+    (df_fenix_actualizado["reporte_tecnico"].str.upper().str.contains("EJECUTADO", na=False))
+    & (df_fenix_actualizado["estado_fenix"].str.upper() == "CUMPLIDO")
 ].copy()
 
 if not cerrados.empty:
-    print(f"📦 {len(cerrados)} pedidos cerrados serán movidos al repositorio.")
+    print(f"📦 {len(cerrados)} pedidos cerrados serán movidos al repositorio...")
+
+    # Normalizar columnas
+    cerrados.columns = cerrados.columns.str.strip().str.lower()
+    cerrados = cerrados.loc[:, ~cerrados.columns.duplicated()]
+
+    # 📁 Si el repositorio existe, combinar datos
+    # 📁 Si el repositorio existe, combinar datos
     if ruta_repo.exists():
         repo = pd.read_excel(ruta_repo, dtype=str)
-        repo = pd.concat([repo, cerrados], ignore_index=True)
-        repo.drop_duplicates(subset=["pedido"], keep="last", inplace=True)
+        repo.columns = repo.columns.str.strip().str.lower()
+        repo = repo.loc[:, ~repo.columns.duplicated()]
+
+        # 🧹 LIMPIEZA ESPECIAL: eliminar filas vacías y encabezados viejos
+        repo = repo[repo.notna().any(axis=1)]
+        repo = repo[~repo.apply(lambda fila: any(str(x).strip().lower() in repo.columns for x in fila.values), axis=1)]
+        repo.reset_index(drop=True, inplace=True)
+
+        # 🔹 Combinar datos sin desordenar columnas y sin filas vacías
+        columnas_repo = list(repo.columns)
+        columnas_nuevas = [col for col in cerrados.columns if col not in columnas_repo]
+
+        repo = repo.reindex(columns=columnas_repo + columnas_nuevas)
+        cerrados = cerrados.reindex(columns=repo.columns)
+
+       # 🧹 LIMPIEZA ROBUSTA PARA EVITAR FILA VACÍA
+        repo.replace(["nan", "None", None], "", inplace=True)
+
+        # Elimina filas que sean 100% vacías o solo espacios
+        repo = repo[repo.apply(lambda fila: ''.join(str(v).strip() for v in fila.values) != '', axis=1)]
+
+        repo.reset_index(drop=True, inplace=True)
+
+
     else:
         repo = cerrados.copy()
-    repo.to_excel(ruta_repo, index=False)
+
+    # 🧹 Limpieza final del repositorio
+    repo.drop_duplicates(subset=["pedido"], keep="last", inplace=True)
+    repo.dropna(axis=1, how="all", inplace=True)
+    # 💾 GUARDAR REPOSITORIO SIN FILA VACÍA
+       
+
+    # 💾 GUARDAR REPOSITORIO SIN FILA VACÍA
+
+    # 1️⃣ Crear archivo completamente vacío SIN hoja inicial
+    wb = Workbook()
+    ws = wb.active
+    wb.remove(ws)  # ← EL PASO CLAVE: eliminar la hoja vacía que crea openpyxl
+    wb.create_sheet("REPOSITORIO_CERRADOS")
+    wb.save(ruta_repo)
+
+    # 2️⃣ Concatenar cerrados ANTES de limpiar
+    repo = pd.concat([repo, cerrados], ignore_index=True)
+
+    # 3️⃣ Limpieza robusta (eliminar filas realmente vacías)
+    repo.replace(["nan", "None", None], "", inplace=True)
+    repo = repo[repo.apply(lambda fila: ''.join(str(v).strip() for v in fila.values) != '', axis=1)]
+    repo.drop_duplicates(subset=["pedido"], keep="last", inplace=True)
+    repo.reset_index(drop=True, inplace=True)
+
+    # 4️⃣ Guardar de forma limpia sin dejar filas fantasma
+    with pd.ExcelWriter(ruta_repo, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
+        repo.to_excel(writer, sheet_name="REPOSITORIO_CERRADOS", index=False)
+
+    print(f"💾 Archivo actualizado: {ruta_repo}")
+  
+    # 🧹 Eliminar pedidos cerrados del archivo FENIX_ANS
+    print("🧹 Eliminando filas cerradas directamente en FENIX_ANS...")
+    wb = load_workbook(ruta_fenix_ans)
+    ws = wb["FENIX_ANS"]
+
+    # Detectar columna PEDIDO
+    col_pedido = None
+    for col in range(1, ws.max_column + 1):
+        if str(ws.cell(1, col).value).strip().lower() == "pedido":
+            col_pedido = col
+            break
+
+    pedidos_cerrados = set(cerrados["pedido"].dropna().astype(str))
+    filas_eliminadas = 0
+
+    # Eliminar de abajo hacia arriba
+    for i in range(ws.max_row, 1, -1):
+        pedido_excel = str(ws.cell(i, col_pedido).value).strip()
+        if pedido_excel in pedidos_cerrados:
+            ws.delete_rows(i, 1)
+            filas_eliminadas += 1
+
+    wb.save(ruta_fenix_ans)
+    print(f"✅ {filas_eliminadas} filas eliminadas correctamente de FENIX_ANS.")
+    print("------------------------------------------------------------")
+
+    # 🔄 Recargar archivo actualizado antes del formato condicional
+    df_fenix_actualizado = pd.read_excel(ruta_fenix_ans, sheet_name="FENIX_ANS", dtype=str)
+    df_fenix_actualizado.columns = df_fenix_actualizado.columns.str.strip().str.lower()
+
 else:
     print("ℹ️ No hay pedidos cerrados nuevos para mover al repositorio.")
 
